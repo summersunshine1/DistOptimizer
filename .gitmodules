@@ -1,0 +1,3 @@
+[submodule "ps-lite"]
+	path = ps-lite
+	url = git://github.com/summersunshine1/ps-lite.git
