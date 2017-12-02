@@ -1,9 +1,13 @@
 import os
 import random
 
-data_dir = './a9a-data'
-train_file = 'a9a'
-test_file = 'a9a.t'
+# data_dir = './a9a-data'
+# train_file = 'a9a'
+# test_file = 'a9a.t'
+# num_part = 4
+data_dir = './ffm'
+train_file = 'train.ffm'
+test_file = "test.ffm"
 num_part = 4
 
 def get_data(filename, is_shuffle=True):
