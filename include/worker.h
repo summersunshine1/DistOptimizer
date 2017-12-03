@@ -1,13 +1,12 @@
-#ifndef SERVER_H_
-#define SERVER_H_
+#ifndef DIST_WORKER_H
+#define DIST_WORKER_H
 #include<vector>
 #include<ps/ps.h>
 
 #include "adam.h"
-#include "data_iter.h"
-#include "sample.h"
+#include "sparse_data_iter.h"
+#include "sparse_sample.h"
 
-using namespace distlr;
 class Worker
 {
     public:
@@ -25,20 +24,20 @@ class Worker
                 delete m_Adam;
             }
         }
-        void train(DataIter& iter, int num_iter,int batch_size);
-        void test(DataIter& iter, int num_iter);
+        void train(SparseDataIter& iter, int num_iter,int batch_size);
+        void test(SparseDataIter& iter, int num_iter);
         
     private:
-        float sigmoid(std::vector<float>& vecFeature,std::vector<float>& vecWeight);
-        std::vector<float> computeGradient(std::vector<Sample>& batch,std::vector<float>& vecWeight);
-        void computeSY(std::vector<Sample>& batch,int nIter);
+        float sigmoid(std::vector<Feature>& vecFeature,std::vector<float>& vecWeight);
+        std::vector<float> computeGradient(std::vector<SparseSample>& batch,std::vector<float>& vecWeight);
+        void computeSY(std::vector<SparseSample>& batch,int nIter);
         void pushParam();
         void pullParam();
         
-        int predict(std::vector<float>& vecfeatures);
+        int predict(std::vector<Feature>& vecfeatures);
         
         bool vectorAllzero(std::vector<float>& vec);
-
+        std::vector<float> convertSparseToDense(std::vector<Feature>& vecSparse);
     private:
         Adam* m_Adam;
         ps::KVWorker<float>* m_kv;

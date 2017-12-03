@@ -1,3 +1,0 @@
-/apps/code/dist_lr/dist-lr/src/CMakeFiles/rebuild_cache.dir
-/apps/code/dist_lr/dist-lr/src/CMakeFiles/edit_cache.dir
-/apps/code/dist_lr/dist-lr/src/CMakeFiles/distlr.dir

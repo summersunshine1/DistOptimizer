@@ -31,19 +31,19 @@ void RunWorker() {
     if(rank==0)
     {
         std::string filename = root + "/train/part-00" + std::to_string(rank + 1);
-        distlr::DataIter iter(filename, num_feature_dim);
+        SparseDataIter iter(filename);
         worker.train(iter, 1, batch_size);
     }
     ps::Postoffice::Get()->Barrier(ps::kWorkerGroup);
     std::cout << "Worker[" << rank << "]: start working..." << std::endl;
     for (int i = 0; i < num_iteration; ++i) {
         std::string filename = root + "/train/part-00" + std::to_string(rank + 1);
-        distlr::DataIter iter(filename, num_feature_dim);
+        SparseDataIter iter(filename);
         worker.train(iter, i+1, batch_size);
         if (rank==0 && (i + 1) % test_interval == 0) {
             std::cout<<"test...."<<rank<<std::endl;
             std::string filename = root + "/test/part-001";
-            distlr::DataIter test_iter(filename, num_feature_dim);
+            SparseDataIter test_iter(filename);
             worker.test(test_iter, i+1);
         }
     }

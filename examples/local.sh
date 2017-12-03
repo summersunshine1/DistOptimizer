@@ -10,13 +10,16 @@ fi
 
 # algorithm setting
 export RANDOM_SEED=10
-export DATA_DIR=./a9a-data
-export NUM_FEATURE_DIM=123
-export LEARNING_RATE=0.01
+export DATA_DIR=./examples/ffm #./examples/a9a-data
+export NUM_FEATURE_DIM=999996 #123
+export LEARNING_RATE=0.1
 export TEST_INTERVAL=10
-export SYNC_MODE=1
-export NUM_ITERATION=50
-export BATCH_SIZE=-1 # -1 means take all examples in each iteration
+export SYNC_MODE=0
+export NUM_ITERATION=100
+export BATCH_SIZE=10000 # -1 means take all examples in each iteration
+export WINDOW_SIZE=10
+export LAMDA=0.1
+# export PS_VERBOSE=2
 
 # worker/server/scheduler settings
 export DMLC_NUM_SERVER=$1
