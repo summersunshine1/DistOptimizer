@@ -34,7 +34,7 @@ class Worker
         void pushParam();
         void pullParam();
         
-        int predict(std::vector<Feature>& vecfeatures);
+        float predict(std::vector<Feature>& vecfeatures);
         
         bool vectorAllzero(std::vector<float>& vec);
         std::vector<float> convertSparseToDense(std::vector<Feature>& vecSparse);

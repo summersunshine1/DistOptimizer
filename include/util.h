@@ -16,6 +16,11 @@ float ToFloat(const char* str);
 
 float ToFloat(const std::string& str);
 
+float CalAuc(std::vector<float>& vecPred, std::vector<int>& veclabel);
+
+template <class Iter, class Compare>
+void argsort(Iter iterBegin,Iter iterEnd, Compare comp, std::vector<size_t>& vecIndexs);
+
 } // namespace distlr
 
 #endif  // DISTLR_UTIL_H_
