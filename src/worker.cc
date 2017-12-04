@@ -25,14 +25,14 @@ std::vector<float> Worker::convertSparseToDense(std::vector<Feature>& vecSparse)
 
 void Worker::train(SparseDataIter& iter, int num_iter, int batch_size)
 {
+    // std::cout<<"worker start train"<<std::endl;
     while (iter.HasNext()) {
-        // std::cout<<"begin.."<<std::endl;
         std::vector<SparseSample> batch = iter.NextBatch(batch_size);
         pullParam();
         computeSY(batch,num_iter);
         pushParam();
-        // std::cout<<"end.."<<std::endl;
     }
+    // std::cout<<"worker end train"<<std::endl;
 }
 
 void Worker::test(SparseDataIter& iter, int num_iter)
@@ -41,32 +41,29 @@ void Worker::test(SparseDataIter& iter, int num_iter)
     std::vector<SparseSample> batch = iter.NextBatch(-1);
     float acc = 0;
     std::vector<Feature> vecFeatures;
-    std::vector<float> vecDenseFeature;
+    std::vector<float> vecPred;
+    std::vector<int> veclabel;
+    float tempPred = 0.0;
     for (size_t i = 0; i < batch.size(); ++i) {
         auto& sample = batch[i];
         vecFeatures = sample.GetFeature();
-        if (predict(vecFeatures) == sample.GetLabel()) {
-            ++acc;
-        }
+        tempPred = predict(vecFeatures);
+        vecPred.push_back(tempPred);
+        veclabel.push_back(sample.GetLabel());
     }
+    float auc = distlr::CalAuc(vecPred, veclabel);
     time_t rawtime;
     time(&rawtime);
     struct tm* curr_time = localtime(&rawtime);
     std::cout << std::setw(2) << curr_time->tm_hour << ':' << std::setw(2)
     << curr_time->tm_min << ':' << std::setw(2) << curr_time->tm_sec
-    << " Iteration "<< num_iter << ", accuracy: " << acc / batch.size()
+    << " Iteration "<< num_iter << ", auc: " << auc
     << std::endl;
 }
 
-int Worker::predict(std::vector<Feature>& vecfeatures)
+float Worker::predict(std::vector<Feature>& vecfeatures)
 {
-    float z = 0;
-    Feature feature;
-    for (size_t j = 0; j < vecfeatures.size(); ++j) {
-        feature = vecfeatures[j];
-        z += m_vecWeightBefore[feature.nfeatureid] *feature.eval;
-    }
-    return z > 0;
+    return sigmoid(vecfeatures, m_vecWeightBefore);
 }
 
 float Worker::sigmoid(std::vector<Feature>& vecFeature,std::vector<float>& vecWeight)
@@ -145,7 +142,6 @@ void Worker::computeSY(std::vector<SparseSample>& batch,int nIter)
     // std::cout<<"updat w begin"<<std::endl;
     // std::transform(m_vecLr.begin(), m_vecLr.end(), m_vecS.begin(), std::bind( std::multiplies<float>(),-1,_1));
     std::transform (m_vecWeightBefore.begin(), m_vecWeightBefore.end(), m_vecS.begin(), m_vecWeightAfter.begin(), std::plus<float>());
-    // std::cout<<"updat w end"<<std::endl;
     m_vecGrad = computeGradient(batch,m_vecWeightAfter);
     /*y = g'-g+lamda*s*/
     std::transform(m_vecGrad.begin(), m_vecGrad.end(), vecGradBefore.begin(), m_vecY.begin(), std::minus<float>());
