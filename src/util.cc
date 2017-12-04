@@ -85,7 +85,7 @@ void argsort(Iter iterBegin,Iter iterEnd, Compare comp, std::vector<size_t>& vec
 float CalAuc(std::vector<float>& vecPred, std::vector<int>& veclabel)
 {
     std::vector<size_t> vecIndexs;
-    argsort(vecPred.begin(), vecPred.end(), std::greater<int>(), vecIndexs);
+    argsort(vecPred.begin(), vecPred.end(), std::greater<float>(), vecIndexs);
     int tp = 0;
     int fp = 0;
     int lastfp = 0;
@@ -104,7 +104,7 @@ float CalAuc(std::vector<float>& vecPred, std::vector<int>& veclabel)
             lastfp = fp;
         }
         if(veclabel[index]==1)
-        {
+        {   
             tp += 1;
         }
         else
@@ -112,6 +112,7 @@ float CalAuc(std::vector<float>& vecPred, std::vector<int>& veclabel)
             fp += 1;
         }
     }
+
     if(tp==0 || tp==vecIndexs.size())
     {
         return 0.0;

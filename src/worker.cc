@@ -39,25 +39,32 @@ void Worker::test(SparseDataIter& iter, int num_iter)
 {
     pullParam();
     std::vector<SparseSample> batch = iter.NextBatch(-1);
-    float acc = 0;
     std::vector<Feature> vecFeatures;
     std::vector<float> vecPred;
     std::vector<int> veclabel;
     float tempPred = 0.0;
+    float acc = 0.0;
+    int label;
     for (size_t i = 0; i < batch.size(); ++i) {
         auto& sample = batch[i];
         vecFeatures = sample.GetFeature();
         tempPred = predict(vecFeatures);
+        label =  sample.GetLabel();
+        if((tempPred>=0.5 && label==1) || (tempPred<0.5 && label==0))
+        {
+            acc+=1;
+        }
         vecPred.push_back(tempPred);
         veclabel.push_back(sample.GetLabel());
     }
     float auc = distlr::CalAuc(vecPred, veclabel);
+    acc = acc/batch.size();
     time_t rawtime;
     time(&rawtime);
     struct tm* curr_time = localtime(&rawtime);
     std::cout << std::setw(2) << curr_time->tm_hour << ':' << std::setw(2)
     << curr_time->tm_min << ':' << std::setw(2) << curr_time->tm_sec
-    << " Iteration "<< num_iter << ", auc: " << auc
+    << " Iteration "<< num_iter << ", auc: " << auc << ", acc" << acc
     << std::endl;
 }
 
