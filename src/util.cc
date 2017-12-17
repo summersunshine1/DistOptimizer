@@ -1,6 +1,7 @@
 #include "util.h"
 #include <iostream>
 #include <algorithm>
+#include <math.h>
 
 namespace distlr {
 
@@ -76,7 +77,7 @@ void argsort(Iter iterBegin,Iter iterEnd, Compare comp, std::vector<size_t>& vec
         pv.push_back(std::pair<int, Iter>(k, iter));
     }
     std::sort(pv.begin(),pv.end(), [&comp](const std::pair<size_t, Iter>&a,const std::pair<size_t,Iter>&b)->bool
-    {return comp(a.first, b.first);});
+    {return comp(*a.second, *b.second);});
     vecIndexs.resize(pv.size());
     std::transform(pv.begin(), pv.end(), vecIndexs.begin(), 
         [](const std::pair<size_t,Iter>& a) -> size_t { return a.first ; });
@@ -103,6 +104,7 @@ float CalAuc(std::vector<float>& vecPred, std::vector<int>& veclabel)
             lasttp = tp;
             lastfp = fp;
         }
+        // std::cout<<vecPred[index]<<" ";
         if(veclabel[index]==1)
         {   
             tp += 1;
@@ -119,7 +121,18 @@ float CalAuc(std::vector<float>& vecPred, std::vector<int>& veclabel)
     }
     auc += (tp+lasttp)*(fp-lastfp)*1.0/2;
     auc = auc*1.0/(tp*fp);
+    std::cout<<std::endl;
     return auc;
+}
+
+float CalLoss(std::vector<float>& vecPred, std::vector<int>& veclabel)
+{
+    float loss = 0.0;
+    for(int i=0;i<vecPred.size();i++)
+    {
+        loss+=veclabel[i]*log(vecPred[i])+(1-veclabel[i])*log(1-vecPred[i]);
+    }
+    return -1.0*loss;
 }
 
 } // namespace distlr

@@ -38,8 +38,9 @@ class Worker
         
         bool vectorAllzero(std::vector<float>& vec);
         std::vector<float> convertSparseToDense(std::vector<Feature>& vecSparse);
+ 
     private:
-        Adam* m_Adam;
+        Adagrad* m_Adam;
         ps::KVWorker<float>* m_kv;
         int m_nfeature;
         float m_elamda;

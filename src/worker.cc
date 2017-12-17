@@ -8,7 +8,7 @@ Worker::Worker(int n_feature,float n_lamda)
 {
     m_nfeature = n_feature;
     m_elamda = n_lamda;
-    m_Adam = new Adam(m_nfeature); 
+    m_Adam = new Adagrad(m_nfeature); 
 }
 
 std::vector<float> Worker::convertSparseToDense(std::vector<Feature>& vecSparse)
@@ -25,12 +25,24 @@ std::vector<float> Worker::convertSparseToDense(std::vector<Feature>& vecSparse)
 
 void Worker::train(SparseDataIter& iter, int num_iter, int batch_size)
 {
+    int block = 0;
     // std::cout<<"worker start train"<<std::endl;
     while (iter.HasNext()) {
         std::vector<SparseSample> batch = iter.NextBatch(batch_size);
         pullParam();
         computeSY(batch,num_iter);
         pushParam();
+        block+=1;
+        if(block%10==0)
+        {
+            if(ps::MyRank()==0)
+            {
+                std::string root = ps::Environment::Get()->find("DATA_DIR");
+                std::string filename = root + "/test/part-001";
+                SparseDataIter test_iter(filename);
+                test(test_iter, block);
+            }
+        } 
     }
     // std::cout<<"worker end train"<<std::endl;
 }
@@ -58,13 +70,15 @@ void Worker::test(SparseDataIter& iter, int num_iter)
         veclabel.push_back(sample.GetLabel());
     }
     float auc = distlr::CalAuc(vecPred, veclabel);
-    acc = acc/batch.size();
+    acc = acc*1.0/batch.size();
+    float loss = distlr::CalLoss(vecPred, veclabel);
+    loss = loss*1.0/batch.size();
     time_t rawtime;
     time(&rawtime);
     struct tm* curr_time = localtime(&rawtime);
     std::cout << std::setw(2) << curr_time->tm_hour << ':' << std::setw(2)
     << curr_time->tm_min << ':' << std::setw(2) << curr_time->tm_sec
-    << " Iteration "<< num_iter << ", auc: " << auc << ", acc" << acc
+    << " Iteration "<< num_iter << ", auc: " << auc << ", loss" << loss<<", acc"<<acc
     << std::endl;
 }
 
@@ -92,15 +106,17 @@ std::vector<float> Worker::computeGradient(std::vector<SparseSample>& batch,std:
 {
     std::vector<float> grad(m_vecWeightBefore.size(),0.0);
     std::vector<Feature> vecFeature;
+    float temp = 0.0;
     for(size_t i=0; i<batch.size();i++)
     {
         auto& sample = batch[i];
         vecFeature = sample.GetFeature();
         Feature feature;
+        temp = sigmoid(vecFeature,vecWeight)-sample.GetLabel();
         for(size_t j=0; j<vecFeature.size(); j++)
         {
             feature = vecFeature[j];
-            grad[feature.nfeatureid] += (sigmoid(vecFeature,vecWeight) - sample.GetLabel()) * feature.eval;
+            grad[feature.nfeatureid] += temp * feature.eval;
         }
     }
     for(size_t j=0;j<m_nfeature;j++)
@@ -162,8 +178,10 @@ void Worker::pushParam()
 {
     std::vector<ps::Key> keys(m_nfeature*3);
     for (int i = 0; i < m_nfeature*3; ++i) {
-        keys[i] = i;
+        keys[i] = i; 
+        // std::cout<<kets[i]<<" ";
     }
+    // keys = std::vector<ps::Key>(keys.rbegin(),keys.rend());
     std::vector<float> vals(m_nfeature*3);
     for(int i=0;i<m_nfeature;i++)
     {
@@ -171,6 +189,10 @@ void Worker::pushParam()
         vals[i+m_nfeature] = m_vecY[i];
         vals[i+2*m_nfeature] = m_vecGrad[i];
     }
+    // vals = std::vector<float>(vals.rbegin(),vals.rend());
+    // std::cout<<std::endl<<"push..."<<vals.size()<<std::endl;
+    // std::cout<<vals[0]<<" "<<vals[m_nfeature*3-1]<<std::endl;
+    
     m_kv->Wait(m_kv->Push(keys, vals));
 }
 

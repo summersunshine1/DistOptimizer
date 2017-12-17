@@ -40,12 +40,12 @@ void RunWorker() {
         std::string filename = root + "/train/part-00" + std::to_string(rank + 1);
         SparseDataIter iter(filename);
         worker.train(iter, i+1, batch_size);
-        if (rank==0 && (i + 1) % test_interval == 0) {
-            std::cout<<"test...."<<rank<<std::endl;
-            std::string filename = root + "/test/part-001";
-            SparseDataIter test_iter(filename);
-            worker.test(test_iter, i+1);
-        }
+        // if (rank==0 && (i + 1) % test_interval == 0) {
+            // std::cout<<"test...."<<rank<<std::endl;
+            // std::string filename = root + "/test/part-001";
+            // SparseDataIter test_iter(filename);
+            // worker.test(test_iter, i+1);
+        // }
     }
 }
 int main() {

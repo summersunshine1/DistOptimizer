@@ -6,7 +6,7 @@
 #include "util.h"
 
 using namespace std::placeholders;
-DistServer::DistServer(float lamda):m_eEpisilo(1e-8),m_eScale(0.1)
+DistServer::DistServer(float lamda):m_eEpisilo(1e-8),m_eScale(1)
 {
     using namespace std::placeholders;
     init();
@@ -23,15 +23,14 @@ void DistServer::init()
 {
     m_nFeature = distlr::ToInt(ps::Environment::Get()->find("NUM_FEATURE_DIM"));
     m_vecWeight.resize(m_nFeature);
-    // for(int i=0;i<m_nFeature;i++)
-    // {
-        // m_vecWeight[i]=0.0;
-    // }
-    srand(12);
-    // weight_.resize(num_feature_dim_);
-      for (size_t i = 0; i < m_vecWeight.size(); ++i) {
-        m_vecWeight[i] = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
-      }
+    for(int i=0;i<m_nFeature;i++)
+    {
+        m_vecWeight[i]=0.0;
+    }
+    // srand(12);
+      // for (size_t i = 0; i < m_vecWeight.size(); ++i) {
+        // m_vecWeight[i] = static_cast<float>(rand()) / static_cast<float>(RAND_MAX);
+      // }
     m_vecGrad.resize(m_nFeature);
     m_nWindow = distlr::ToInt(ps::Environment::Get()->find("WINDOW_SIZE"));
 }
@@ -43,10 +42,13 @@ void DistServer::dataHandle(const ps::KVMeta& req_meta,
     int key = DecodeKey(req_data.keys[0]);
     size_t n = req_data.keys.size();
     if (req_meta.push) {
+        // std::cout<<"handle push begin...."<<std::endl;
         CHECK_EQ(m_nFeature*3, n);
         std::vector<float> vecTemps;
         std::vector<float> vecTempy;
         /* vecs,vecy,vecgrad*/
+        // std::cout<<std::endl<<"pull...."<<n<<std::endl;
+        // std::cout<<req_data.vals[0]<<" "<<req_data.vals[n-1]<<std::endl;
         for(size_t i = 0; i < m_nFeature; ++i)
         {
             vecTemps.push_back(req_data.vals[i]*1.0/m_eScale);
@@ -63,7 +65,7 @@ void DistServer::dataHandle(const ps::KVMeta& req_meta,
         pushSY(vecTemps, vecTempy);
         updateSY();
         server->Response(req_meta);
-
+        // std::cout<<"handle push end...."<<std::endl;
      }
     else { // pull
         // std::cout<<"pull....."<<m_vecDirection.size()<<std::endl;
@@ -152,9 +154,10 @@ void DistServer::initFirstDirection(std::vector<float>& vecGrad, std::vector<flo
 {
     //yk=g-oldg+lambda*sk
     m_vecDirection.resize(m_nFeature);
-    std::vector<float> vecTemp(m_nFeature);
-    transform(vecs.begin(), vecs.end(), vecTemp.begin(), std::bind( std::multiplies<float>(),m_eLamda,_1));
-    transform(vecGrad.begin(), vecGrad.end(), vecTemp.begin(),vecTemp.begin(), std::plus<float>());
-    transform(vecTemp.begin(), vecTemp.end(), vecy.begin(),m_vecDirection.begin(), std::minus<float>());
+    transform(m_vecGrad.begin(), m_vecGrad.end(), m_vecDirection.begin(), std::bind( std::multiplies<float>(),-1,_1));
+    // std::vector<float> vecTemp(m_nFeature);
+    // transform(vecs.begin(), vecs.end(), vecTemp.begin(), std::bind( std::multiplies<float>(),m_eLamda,_1));
+    // transform(vecGrad.begin(), vecGrad.end(), vecTemp.begin(),vecTemp.begin(), std::plus<float>());
+    // transform(vecTemp.begin(), vecTemp.end(), vecy.begin(),m_vecDirection.begin(), std::minus<float>());
 }
   

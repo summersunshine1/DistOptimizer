@@ -1,8 +1,6 @@
 #include<vector>
 #include<math.h>
 #include <iostream>
-
-namespace distlr {
     
 class Adam {
     public:
@@ -43,4 +41,29 @@ class Adam {
         int grad_size;
         int per_grad_dim; 
 };
-}
+
+class Adagrad {
+    public:
+        explicit Adagrad(int gradsize,float alpha = 0.001,float epsilo = 1e-10): 
+        grad_size(gradsize), alpha(alpha), epsilo(epsilo)
+        {
+            n.resize(gradsize);
+        }
+        Adagrad(){
+        }
+        ~Adagrad() {
+        }
+        
+        float getgrad(float grad,int i, int iter)
+        {   
+            n[i] += grad*grad;
+            float updated_grad = alpha*grad/sqrt(n[i]+epsilo);
+            // std::cout<<grad<<" "<<updated_grad<<std::endl;
+            return updated_grad;
+        }
+    private:
+        float alpha;
+        float epsilo;
+        std::vector<float> n;
+        int grad_size;
+};

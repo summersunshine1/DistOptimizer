@@ -18,6 +18,8 @@ float ToFloat(const std::string& str);
 
 float CalAuc(std::vector<float>& vecPred, std::vector<int>& veclabel);
 
+float CalLoss(std::vector<float>& vecPred, std::vector<int>& veclabel);
+
 template <class Iter, class Compare>
 void argsort(Iter iterBegin,Iter iterEnd, Compare comp, std::vector<size_t>& vecIndexs);
 
