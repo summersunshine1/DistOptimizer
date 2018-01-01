@@ -42,7 +42,7 @@ public:
         }
         samples_.push_back(SparseSample(vecfeature, label));
       }
-      std::random_shuffle ( samples_.begin(), samples_.end() );
+      // std::random_shuffle ( samples_.begin(), samples_.end() );
   }
   virtual ~SparseDataIter() {
   }

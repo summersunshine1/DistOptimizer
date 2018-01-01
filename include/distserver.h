@@ -2,7 +2,10 @@
 #define DISTSERVER_H_
 #include<vector>
 #include<ps/ps.h>
-
+struct MergeBuf {
+    std::vector<ps::KVMeta> request;
+    std::vector<float> vals;
+};
 class DistServer
 {
     public:
@@ -19,7 +22,7 @@ class DistServer
         void init();
         void pushSY(std::vector<float>& vecTemps, std::vector<float>& vecTempy);
         int DecodeKey(ps::Key key);
-        void initFirstDirection(std::vector<float>& vecGrad, std::vector<float>& vecs, std::vector<float>& vecy);
+        void initFirstDirection();
         void pop_front(std::vector<std::vector<float>>& vec);
     private:
         std::vector<std::vector<float>> m_vecS;
@@ -36,5 +39,6 @@ class DistServer
         
         bool m_bSync;
         ps::KVServer<float>* m_psServer;
+        MergeBuf mergebuf;
 };
 #endif 

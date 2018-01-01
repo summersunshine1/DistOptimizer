@@ -26,6 +26,8 @@ class Worker
         }
         void train(SparseDataIter& iter, int num_iter,int batch_size);
         void test(SparseDataIter& iter, int num_iter);
+        void setL1(bool isl1);
+        void firstTrain(SparseDataIter& iter,int batch_size);
         
     private:
         float sigmoid(std::vector<Feature>& vecFeature,std::vector<float>& vecWeight);
@@ -35,15 +37,23 @@ class Worker
         void pullParam();
         
         float predict(std::vector<Feature>& vecfeatures);
-        
+    public: 
         bool vectorAllzero(std::vector<float>& vec);
-        std::vector<float> convertSparseToDense(std::vector<Feature>& vecSparse);
+        
+        void computePesudoGrad(std::vector<float>& vecWeight,std::vector<float>& vecGrad);
+        void fixSign(std::vector<float>& vec,std::vector<float>& vecOrth);
+        std::vector<float> getorthat(std::vector<float>& vecWeight);
  
     private:
-        Adagrad* m_Adam;
+        Adam* m_Adam;
         ps::KVWorker<float>* m_kv;
         int m_nfeature;
         float m_elamda;
+        
+        float m_l1co;
+        bool m_bisL1;
+        
+        int m_nIteration;
         
         std::vector<float> m_vecWeightBefore;
         std::vector<float> m_vecWeightAfter;
@@ -51,6 +61,7 @@ class Worker
         std::vector<float> m_vecD;
         std::vector<float> m_vecS;
         std::vector<float> m_vecY;
-        std::vector<float> m_vecLr;    
+        std::vector<float> m_vecLr; 
+        std::vector<float> m_vecPGrad;
 };
 #endif 

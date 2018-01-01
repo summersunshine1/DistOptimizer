@@ -23,6 +23,10 @@ float CalLoss(std::vector<float>& vecPred, std::vector<int>& veclabel);
 template <class Iter, class Compare>
 void argsort(Iter iterBegin,Iter iterEnd, Compare comp, std::vector<size_t>& vecIndexs);
 
+float SumvecAbs(std::vector<float>& w);
+template <class T>
+void clearVector(std::vector<T>& v);
+
 } // namespace distlr
 
 #endif  // DISTLR_UTIL_H_
