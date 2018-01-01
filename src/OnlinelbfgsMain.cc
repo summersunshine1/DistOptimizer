@@ -23,16 +23,19 @@ void RunWorker() {
     int rank = ps::MyRank();
     ps::KVWorker<float>* kv = new ps::KVWorker<float>(0);
     Worker worker(num_feature_dim,lamda);
+    bool isl1 = distlr::ToInt(ps::Environment::Get()->find("L1")) ? true:false;
     worker.setKVWorker(kv);
+    worker.setL1(isl1);
     
     int num_iteration = distlr::ToInt(ps::Environment::Get()->find("NUM_ITERATION"));
     int batch_size = distlr::ToInt(ps::Environment::Get()->find("BATCH_SIZE"));
     int test_interval = distlr::ToInt(ps::Environment::Get()->find("TEST_INTERVAL"));
+    
     if(rank==0)
     {
         std::string filename = root + "/train/part-00" + std::to_string(rank + 1);
         SparseDataIter iter(filename);
-        worker.train(iter, 1, batch_size);
+        worker.firstTrain(iter, batch_size);
     }
     ps::Postoffice::Get()->Barrier(ps::kWorkerGroup);
     std::cout << "Worker[" << rank << "]: start working..." << std::endl;
@@ -55,5 +58,17 @@ int main() {
     RunWorker();
 
     ps::Finalize();
+    // Worker worker(10,0.1);
+    // float b[]={2,2,-1,-3,0};
+    // float a[]={1,-1,2,1,0};
+    // std::vector<float> v(b,b+sizeof(b)/sizeof(float));
+    // std::vector<float> v1(a,a+sizeof(a)/sizeof(float));
+    
+    // worker.fixSign(v,v1);
+    // for(int i=0;i<v.size();i++)
+    // {
+        // std::cout<<v[i]<<" ";
+    // }
+    // std::cout<<std::endl;
     return 0;
 }

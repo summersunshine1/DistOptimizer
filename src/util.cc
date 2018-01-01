@@ -135,4 +135,27 @@ float CalLoss(std::vector<float>& vecPred, std::vector<int>& veclabel)
     return -1.0*loss;
 }
 
+float SumvecAbs(std::vector<float>& w)
+{
+    float temp =0.0;
+    for(int i=0;i<w.size();i++)
+    {
+        if(w[i]<0)
+        {
+            temp+=-1*w[i];
+        }
+        else
+        {
+            temp+=w[i];
+        }
+    }
+    return temp;
+}
+
+template <class T>
+void clearVector(std::vector<T>& v)
+{
+    std::vector<T>().swap(v);
+}
+
 } // namespace distlr

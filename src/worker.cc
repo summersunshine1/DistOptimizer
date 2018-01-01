@@ -4,43 +4,54 @@
 #include "worker.h"
 
 using namespace std::placeholders;
-Worker::Worker(int n_feature,float n_lamda)
+Worker::Worker(int n_feature,float n_lamda) : m_nIteration(0)
 {
     m_nfeature = n_feature;
     m_elamda = n_lamda;
-    m_Adam = new Adagrad(m_nfeature); 
+    m_Adam = new Adam(m_nfeature); 
+    m_l1co = 0.0001;
+    m_bisL1 = false;
 }
 
-std::vector<float> Worker::convertSparseToDense(std::vector<Feature>& vecSparse)
+void Worker::setL1(bool isl1)
 {
-    std::vector<float> vecDense(m_nfeature, 0.0); 
-    Feature feature;
-    for(int i=0;i<vecSparse.size();i++)
-    {
-        feature = vecSparse[i];
-        vecDense[feature.nfeatureid] = feature.eval;
-    }
-    return vecDense;
+    m_bisL1 = isl1;
 }
 
-void Worker::train(SparseDataIter& iter, int num_iter, int batch_size)
+void Worker::firstTrain(SparseDataIter& iter,int batch_size)
 {
-    int block = 0;
-    // std::cout<<"worker start train"<<std::endl;
-    while (iter.HasNext()) {
+    if(iter.HasNext()) {
+        m_nIteration += 1;
         std::vector<SparseSample> batch = iter.NextBatch(batch_size);
         pullParam();
-        computeSY(batch,num_iter);
+        computeSY(batch,m_nIteration);
         pushParam();
-        block+=1;
-        if(block%10==0)
+    }
+}
+
+void Worker::train(SparseDataIter& iter, int num_iter,int batch_size)
+{
+   
+    // std::cout<<"worker start train"<<std::endl;
+    if(ps::MyRank()==0)
+    {
+        iter.NextBatch(batch_size);
+    }
+
+    while(iter.HasNext()) {
+        m_nIteration += 1;
+        std::vector<SparseSample> batch = iter.NextBatch(batch_size);
+        pullParam();
+        computeSY(batch,m_nIteration);
+        pushParam();
+        if(m_nIteration%10==0)
         {
             if(ps::MyRank()==0)
             {
                 std::string root = ps::Environment::Get()->find("DATA_DIR");
                 std::string filename = root + "/test/part-001";
                 SparseDataIter test_iter(filename);
-                test(test_iter, block);
+                test(test_iter, num_iter);
             }
         } 
     }
@@ -72,13 +83,17 @@ void Worker::test(SparseDataIter& iter, int num_iter)
     float auc = distlr::CalAuc(vecPred, veclabel);
     acc = acc*1.0/batch.size();
     float loss = distlr::CalLoss(vecPred, veclabel);
+    if(m_bisL1)
+    {
+        loss+=m_l1co * distlr::SumvecAbs(m_vecWeightBefore);
+    }
     loss = loss*1.0/batch.size();
     time_t rawtime;
     time(&rawtime);
     struct tm* curr_time = localtime(&rawtime);
     std::cout << std::setw(2) << curr_time->tm_hour << ':' << std::setw(2)
     << curr_time->tm_min << ':' << std::setw(2) << curr_time->tm_sec
-    << " Iteration "<< num_iter << ", auc: " << auc << ", loss" << loss<<", acc"<<acc
+    << ",sample iteration " << m_nIteration<<",auc: " << auc << ", loss" << loss<<", acc"<<acc
     << std::endl;
 }
 
@@ -144,33 +159,66 @@ bool Worker::vectorAllzero(std::vector<float>& vec)
 void Worker::computeSY(std::vector<SparseSample>& batch,int nIter)
 {
     std::vector<float> vecGradBefore = computeGradient(batch,m_vecWeightBefore);
+    
     if(vectorAllzero(m_vecD))
     {
         std::cout<<"init...."<<ps::MyRank()<<std::endl;
-        std::transform(vecGradBefore.begin(), vecGradBefore.end(), m_vecD.begin(), std::bind( std::multiplies<float>(),-1,_1));
+        int minimum = 1e-10;
+        if(m_bisL1)
+        {
+            computePesudoGrad(m_vecWeightBefore, vecGradBefore);
+            std::transform(m_vecPGrad.begin(), m_vecPGrad.end(), m_vecD.begin(), std::bind( std::multiplies<float>(),-1,_1));
+        }
+        else{
+            std::transform(vecGradBefore.begin(), vecGradBefore.end(), m_vecD.begin(), std::bind( std::multiplies<float>(),-1,_1));
+        }
+    }
+    else
+    {
+        if(m_bisL1)
+        {
+            computePesudoGrad(m_vecWeightBefore, vecGradBefore);
+        }
+    }
+    if(m_bisL1)
+    {
+        std::vector<float> temp(m_vecPGrad.size());
+        // fix sign of direction
+        std::transform(m_vecPGrad.begin(), m_vecPGrad.end(), temp.begin(), std::bind( std::multiplies<float>(),-1,_1));
+        fixSign(m_vecD,temp);
     }
     m_vecLr.resize(m_vecD.size());
-    // std::cout<<"grad beigin"<<std::endl;
     for(int i=0;i<m_vecD.size();i++)
     {
-        float temp = m_Adam->getgrad(m_vecD[i], i, nIter);
-        // std::cout<<temp<<" ";
-        m_vecLr[i] = temp;
+        m_vecLr[i] = m_Adam->getmaxgrad(m_vecD[i], i, nIter);
     }
-    // std::cout<<"grad end"<<std::endl;
-    // std::cout<<std::endl;
-    m_vecS = m_vecLr;
-    m_vecY.resize(m_vecD.size());
+    //w+=lr
     m_vecWeightAfter.resize(m_vecD.size());
-    // std::cout<<"updat w begin"<<std::endl;
-    // std::transform(m_vecLr.begin(), m_vecLr.end(), m_vecS.begin(), std::bind( std::multiplies<float>(),-1,_1));
-    std::transform (m_vecWeightBefore.begin(), m_vecWeightBefore.end(), m_vecS.begin(), m_vecWeightAfter.begin(), std::plus<float>());
+    std::transform (m_vecWeightBefore.begin(), m_vecWeightBefore.end(), m_vecLr.begin(), m_vecWeightAfter.begin(), std::plus<float>());
+   
+       
+    if(m_bisL1)
+    {
+        std::vector<float> vecOrth = getorthat(m_vecWeightBefore);
+        fixSign(m_vecWeightAfter,vecOrth);
+        //s = neww-w
+        m_vecS.resize(m_vecWeightAfter.size());
+        std::transform(m_vecWeightAfter.begin(), m_vecWeightAfter.end(), m_vecWeightBefore.begin(), m_vecS.begin(), std::minus<float>());  
+    }
+    else
+    {
+        m_vecS = m_vecLr;
+    }
     m_vecGrad = computeGradient(batch,m_vecWeightAfter);
     /*y = g'-g+lamda*s*/
+    m_vecY.resize(m_vecD.size());
+    /*y=g'-g*/
     std::transform(m_vecGrad.begin(), m_vecGrad.end(), vecGradBefore.begin(), m_vecY.begin(), std::minus<float>());
     
     std::vector<float> vecTemp(m_nfeature);
+    /*lamda*s*/
     std::transform(m_vecS.begin(), m_vecS.end(), vecTemp.begin(), std::bind( std::multiplies<float>(),m_elamda,_1));
+    /*y = y+lamda*s*/
     std::transform(m_vecY.begin(), m_vecY.end(), vecTemp.begin(), m_vecY.begin(), std::plus<float>());
 }
 
@@ -183,11 +231,23 @@ void Worker::pushParam()
     }
     // keys = std::vector<ps::Key>(keys.rbegin(),keys.rend());
     std::vector<float> vals(m_nfeature*3);
-    for(int i=0;i<m_nfeature;i++)
+    if(!m_bisL1)
     {
-        vals[i] = m_vecS[i];
-        vals[i+m_nfeature] = m_vecY[i];
-        vals[i+2*m_nfeature] = m_vecGrad[i];
+        for(int i=0;i<m_nfeature;i++)
+        {
+            vals[i] = m_vecS[i];
+            vals[i+m_nfeature] = m_vecY[i];
+            vals[i+2*m_nfeature] = m_vecGrad[i];
+        }
+    }
+    else
+    {
+        for(int i=0;i<m_nfeature;i++)
+        {
+            vals[i] = m_vecS[i];
+            vals[i+m_nfeature] = m_vecY[i];
+            vals[i+2*m_nfeature] = m_vecPGrad[i];
+        }
     }
     // vals = std::vector<float>(vals.rbegin(),vals.rend());
     // std::cout<<std::endl<<"push..."<<vals.size()<<std::endl;
@@ -208,3 +268,74 @@ void Worker::pullParam()
     
     m_vecD = std::vector<float>(vals.begin()+m_nfeature,vals.end());
 }
+
+void Worker::computePesudoGrad(std::vector<float>& vecWeight,std::vector<float>& vecGrad)
+{
+    int l = vecWeight.size();
+    m_vecPGrad.resize(0);
+    m_vecPGrad.resize(l,0.0);
+    for(int i=0;i<l;i++)
+    {
+        if(vecWeight[i]<0.0)
+        {
+            m_vecPGrad[i]=vecGrad[i]-m_l1co;
+        }
+        else if(vecWeight[i]>0.0)
+        {
+            m_vecPGrad[i]=vecGrad[i]+m_l1co;
+        }
+        else
+        {
+            if(vecGrad[i]+m_l1co<0)
+            {
+                m_vecPGrad[i] = vecGrad[i]+m_l1co;
+            }
+            else if(vecGrad[i]-m_l1co>0)
+            {
+                m_vecPGrad[i] = vecGrad[i]-m_l1co;
+            }
+        }
+    }
+}
+
+void Worker::fixSign(std::vector<float>& vec,std::vector<float>& vecOrth)
+{
+    for(int i=0;i<vec.size();i++)
+    {
+        if(vec[i]*vecOrth[i]<0)
+        {
+            vec[i]=0.0;
+        }
+    }
+}
+
+std::vector<float> Worker::getorthat(std::vector<float>& vecWeight)
+{
+    std::vector<float> vecOrth(vecWeight.size());
+    for(int i=0;i<vecWeight.size();i++)
+    {
+        if(vecWeight[i]!=0)
+        {
+            if(vecWeight[i]<0)
+            {
+                vecOrth[i] = -1.0;
+            }
+            else{
+                vecOrth[i] = 1.0;
+            }
+        }
+        else
+        {
+            if(m_vecPGrad[i]<0)
+            {
+                vecOrth[i]=1.0;
+            }
+            else if(m_vecPGrad[i]>0)
+            {
+                vecOrth[i]=-1.0;
+            }
+        }
+    }
+    return vecOrth;
+}
+

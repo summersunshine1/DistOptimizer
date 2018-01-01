@@ -39,32 +39,80 @@ void DistServer::dataHandle(const ps::KVMeta& req_meta,
                   const ps::KVPairs<float>& req_data,
                   ps::KVServer<float>* server) {
 
-    int key = DecodeKey(req_data.keys[0]);
     size_t n = req_data.keys.size();
     if (req_meta.push) {
         // std::cout<<"handle push begin...."<<std::endl;
         CHECK_EQ(m_nFeature*3, n);
-        std::vector<float> vecTemps;
-        std::vector<float> vecTempy;
-        /* vecs,vecy,vecgrad*/
-        // std::cout<<std::endl<<"pull...."<<n<<std::endl;
-        // std::cout<<req_data.vals[0]<<" "<<req_data.vals[n-1]<<std::endl;
-        for(size_t i = 0; i < m_nFeature; ++i)
-        {
-            vecTemps.push_back(req_data.vals[i]*1.0/m_eScale);
-            vecTempy.push_back(req_data.vals[i+m_nFeature]);
-            m_vecGrad[i] = req_data.vals[i+m_nFeature*2];
-            // std::cout<<vecTemps[i]<<" ";
-            m_vecWeight[i] += vecTemps[i];
-        }
-        // std::cout<<std::endl;
         if(m_vecDirection.size()==0)
         {
-            initFirstDirection(m_vecGrad, vecTemps, vecTempy);
+            std::vector<float> vecTemps;
+            std::vector<float> vecTempy;
+            /* vecs,vecy,vecgrad*/
+            for(size_t i = 0; i < m_nFeature; ++i)
+            {
+                vecTemps.push_back(req_data.vals[i]*1.0/m_eScale);
+                vecTempy.push_back(req_data.vals[i+m_nFeature]);
+                m_vecGrad[i] = req_data.vals[i+m_nFeature*2];
+                m_vecWeight[i] += vecTemps[i];
+            }
+            initFirstDirection();
+            pushSY(vecTemps, vecTempy);
+            updateSY();
+            server->Response(req_meta);
         }
-        pushSY(vecTemps, vecTempy);
-        updateSY();
-        server->Response(req_meta);
+        else if(!m_bSync)
+        {
+            std::vector<float> vecTemps;
+            std::vector<float> vecTempy;
+            /* vecs,vecy,vecgrad*/
+            for(size_t i = 0; i < m_nFeature; ++i)
+            {
+                vecTemps.push_back(req_data.vals[i]*1.0/m_eScale);
+                vecTempy.push_back(req_data.vals[i+m_nFeature]);
+                m_vecGrad[i] = req_data.vals[i+m_nFeature*2];
+                m_vecWeight[i] += vecTemps[i];
+            }
+            pushSY(vecTemps, vecTempy);
+            updateSY();
+            server->Response(req_meta);
+        }
+        else
+        {
+            if (mergebuf.vals.empty()) {
+                mergebuf.vals.resize(m_nFeature*3, 0);
+            }
+            for(size_t i = 0; i < m_nFeature; ++i)
+            {
+                mergebuf.vals[i]+=req_data.vals[i];
+                mergebuf.vals[i+m_nFeature]+=req_data.vals[i+m_nFeature];
+                mergebuf.vals[i+m_nFeature*2]+=req_data.vals[i+m_nFeature*2];
+            }
+            mergebuf.request.push_back(req_meta);
+            int workers = (size_t)ps::NumWorkers();
+            if(mergebuf.request.size()==workers)
+            {
+                std::vector<float> vecTemps;
+                std::vector<float> vecTempy;
+                for(size_t i = 0; i < m_nFeature; ++i)
+                {
+                    vecTemps.push_back(mergebuf.vals[i]*1.0/workers);
+                    vecTempy.push_back(mergebuf.vals[i+m_nFeature]*1.0/workers);
+                    m_vecGrad[i] = mergebuf.vals[i+m_nFeature*2]*1.0/workers;
+                    // std::cout<<vecTemps[i]<<" ";
+                    m_vecWeight[i] += vecTemps[i];
+                }
+                pushSY(vecTemps, vecTempy);
+                updateSY();
+                for(size_t i=0;i<workers;i++)
+                {
+                    server->Response(mergebuf.request[i]);
+                }
+                mergebuf.request.clear();
+                mergebuf.vals.clear();
+                // distlr::clearVector(mergebuf.request);
+                // distlr::clearVector(mergebuf.vals);
+            }
+        }
         // std::cout<<"handle push end...."<<std::endl;
      }
     else { // pull
@@ -114,7 +162,7 @@ void DistServer::pushSY(std::vector<float>& vecTemps, std::vector<float>& vecTem
 
 void DistServer::updateSY(){
     int nSize = m_vecS.size();
-    int temp = nSize-2;
+    int temp = nSize-1;
     std::vector<float> vecAlpha;
     float eTempAlpha = 0.0;
     std::vector<float> vecGrad = m_vecGrad;
@@ -129,13 +177,17 @@ void DistServer::updateSY(){
         transform(vecGrad.begin(), vecGrad.end(),vecMiddle.begin(),vecGrad.begin(), std::minus<float>());//q=q-y*alpha
         temp-=1;
     }
+    temp = nSize-1;
+    float fnum = std::inner_product(m_vecS[temp].begin(), m_vecS[temp].end(), m_vecY[temp].begin(), 0.0);
+    float fdom = std::inner_product(m_vecY[temp].begin(), m_vecY[temp].end(), m_vecY[temp].begin(), 0.0);
+    transform(vecGrad.begin(), vecGrad.end(), vecGrad.begin(),std::bind( std::multiplies<float>(),fnum/(fdom+m_eEpisilo),_1));
     float beta = 0.0;
-    for(temp = 0;temp<nSize-1;temp++)
+    for(temp = 0;temp<nSize;temp++)
     {
         float num = std::inner_product(m_vecY[temp].begin(), m_vecY[temp].end(), vecGrad.begin(), 0.0);//y*q
         float dom = std::inner_product(m_vecY[temp].begin(), m_vecY[temp].end(), m_vecS[temp].begin(), 0.0);//y*s
         beta = (num)/(dom+m_eEpisilo);//beta=y*q/(y*s+e)
-        float ftemp = m_eScale * vecAlpha[nSize-2-temp]-beta;//c*alpha-beta
+        float ftemp = m_eScale * vecAlpha[nSize-1-temp]-beta;//c*alpha-beta
         //s*(c*alpha-beta)
         transform(m_vecS[temp].begin(), m_vecS[temp].end(), vecMiddle.begin(), std::bind( std::multiplies<float>(),ftemp,_1));
         //q = q+s*(c*alpha-beta)
@@ -145,14 +197,15 @@ void DistServer::updateSY(){
     float ftemp = std::inner_product(m_vecY[nSize-1].begin(), m_vecY[nSize-1].end(), m_vecS[nSize-1].begin(), 0.0);
     if(ftemp>0)
     {
-        //d = d+q
-        transform(m_vecDirection.begin(), m_vecDirection.end(),vecGrad.begin(),m_vecDirection.begin(), std::minus<float>());
+        //d = -q
+        transform(vecGrad.begin(), vecGrad.end(),m_vecDirection.begin(), std::bind( std::multiplies<float>(),-1,_1));
     }
+    
 }
 
-void DistServer::initFirstDirection(std::vector<float>& vecGrad, std::vector<float>& vecs, std::vector<float>& vecy)
+void DistServer::initFirstDirection()
 {
-    //yk=g-oldg+lambda*sk
+    //
     m_vecDirection.resize(m_nFeature);
     transform(m_vecGrad.begin(), m_vecGrad.end(), m_vecDirection.begin(), std::bind( std::multiplies<float>(),-1,_1));
     // std::vector<float> vecTemp(m_nFeature);
