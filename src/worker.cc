@@ -163,14 +163,14 @@ void Worker::computeSY(std::vector<SparseSample>& batch,int nIter)
     if(vectorAllzero(m_vecD))
     {
         std::cout<<"init...."<<ps::MyRank()<<std::endl;
-        int minimum = 1e-10;
+        int minimum = 1e-8;
         if(m_bisL1)
         {
             computePesudoGrad(m_vecWeightBefore, vecGradBefore);
             std::transform(m_vecPGrad.begin(), m_vecPGrad.end(), m_vecD.begin(), std::bind( std::multiplies<float>(),-1,_1));
         }
         else{
-            std::transform(vecGradBefore.begin(), vecGradBefore.end(), m_vecD.begin(), std::bind( std::multiplies<float>(),-1,_1));
+            std::transform(vecGradBefore.begin(), vecGradBefore.end(), m_vecD.begin(), std::bind( std::multiplies<float>(),-minimum,_1));
         }
     }
     else

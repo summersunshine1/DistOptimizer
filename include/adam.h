@@ -4,7 +4,7 @@
     
 class Adam {
     public:
-        explicit Adam(int gradsize, int per_grad_dim = 1, float alpha = 0.01, float beta1 = 0.9, float beta2 = 0.9,
+        explicit Adam(int gradsize, int per_grad_dim = 1, float alpha = 0.01, float beta1 = 0.9, float beta2 = 0.999,
         float epsilo = 1e-8): grad_size(gradsize), per_grad_dim(per_grad_dim), alpha(alpha), beta1(beta1), beta2(beta2),epsilo(epsilo)
         {
             m.resize(gradsize);
